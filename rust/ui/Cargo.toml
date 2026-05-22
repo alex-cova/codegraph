@@ -1,0 +1,10 @@
+[package]
+name = "codegraph-ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.13", features = ["canvas", "tokio"] }
+codegraph-rs = { path = ".." }
+anyhow = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread"] }

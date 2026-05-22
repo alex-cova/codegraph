@@ -2,13 +2,13 @@
 
 # CodeGraph
 
-### Supercharge Claude Code, Cursor, Codex, and OpenCode with Semantic Code Intelligence
+### Rust-native Semantic Code Intelligence for Claude Code, Cursor, Codex, and OpenCode
 
 **~35% cheaper · ~70% fewer tool calls · 100% local**
 
-[![npm version](https://img.shields.io/npm/v/@colbymchenry/codegraph.svg)](https://www.npmjs.com/package/@colbymchenry/codegraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-20--24-green.svg)](https://nodejs.org/)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-bundled-blue.svg)](https://sqlite.org/)
 
 [![Windows](https://img.shields.io/badge/Windows-supported-blue.svg)](#)
 [![macOS](https://img.shields.io/badge/macOS-supported-blue.svg)](#)
@@ -24,10 +24,13 @@
 ### Get Started
 
 ```bash
-npx @colbymchenry/codegraph
+cd rust
+cargo build --release
+mkdir -p ~/.local/bin
+cp target/release/codegraph-rs ~/.local/bin/codegraph
 ```
 
-<sub>Interactive installer auto-configures your agent(s) — Claude Code, Cursor, Codex CLI, opencode</sub>
+<sub>Builds the Rust CLI and MCP server, then installs it locally as `codegraph`.</sub>
 
 #### Initialize Projects
 
@@ -106,9 +109,9 @@ The gains scale with codebase size: on large repos the agent answers from the in
 | **Smart Context Building** | One tool call returns entry points, related symbols, and code snippets — no expensive exploration agents |
 | **Full-Text Search** | Find code by name instantly across your entire codebase, powered by FTS5 |
 | **Impact Analysis** | Trace callers, callees, and the full impact radius of any symbol before making changes |
-| **Always Fresh** | File watcher uses native OS events (FSEvents/inotify/ReadDirectoryChangesW) with debounced auto-sync — the graph stays current as you code, zero config |
-| **19+ Languages** | TypeScript, JavaScript, Python, Go, Rust, Java, C#, PHP, Ruby, C, C++, Swift, Kotlin, Dart, Lua, Luau, Svelte, Liquid, Pascal/Delphi |
-| **Framework-aware Routes** | Recognizes web-framework routing files and links URL patterns to their handlers across 13 frameworks |
+| **Always Fresh** | The Rust MCP server can run a polling watcher with debounced auto-sync so the graph stays current as you code |
+| **Multi-Language Indexing** | Rust AST extraction plus tree-sitter-backed extraction for TypeScript, JavaScript, Python, Go, Java, C, C++, C#, Ruby, PHP, Swift, Lua/Luau, Dart, Scala, Svelte, and Vue |
+| **Framework-aware Routes** | Recognizes common web-framework routing files and links URL patterns to their handlers |
 | **100% Local** | No data leaves your machine. No API keys. No external services. SQLite database only |
 
 ---
@@ -122,36 +125,30 @@ CodeGraph detects web-framework routing files and emits `route` nodes linked by 
 | **Django** | `path()`, `re_path()`, `url()`, `include()` in `urls.py` (CBV `.as_view()`, dotted paths) |
 | **Flask** | `@app.route('/path', methods=[...])`, blueprint routes |
 | **FastAPI** | `@app.get(...)`, `@router.post(...)`, all standard methods |
-| **Express** | `app.get(...)`, `router.post(...)` with middleware chains |
-| **NestJS** | `@Controller` + `@Get/@Post/...`, GraphQL `@Resolver` + `@Query/@Mutation`, `@MessagePattern`/`@EventPattern`, `@SubscribeMessage` |
-| **Laravel** | `Route::get()`, `Route::resource()`, `Controller@action`, tuple syntax |
-| **Rails** | `get '/x', to: 'users#index'`, hash-rocket `=>` syntax |
+| **Express / Fastify / Koa / Hapi-style JS routers** | `app.get(...)`, `router.post(...)`, `router.route(...)` |
+| **Laravel** | `Route::get()`, `Route::post()`, `Route::any()` |
+| **Rails** | `get '/x', to: 'users#index'`, `resources`, `namespace` |
 | **Spring** | `@GetMapping`, `@PostMapping`, `@RequestMapping` on methods |
-| **Gin / chi / gorilla / mux** | `r.GET(...)`, `router.HandleFunc(...)` |
-| **Axum / actix / Rocket** | `.route("/x", get(handler))` |
+| **Gin / chi / Echo / Fiber / net/http** | `r.GET(...)`, `router.HandleFunc(...)` |
+| **Axum** | `.route("/x", get(handler))` |
 | **ASP.NET** | `[HttpGet("/x")]` attributes on action methods |
-| **Vapor** | `app.get("x", use: handler)` |
-| **React Router** / **SvelteKit** | Route component nodes |
 
 ---
 
 ## Quick Start
 
-### 1. Run the Installer
+### 1. Build the Rust CLI
 
 ```bash
-npx @colbymchenry/codegraph
+cd rust
+cargo build --release
+mkdir -p ~/.local/bin
+cp target/release/codegraph-rs ~/.local/bin/codegraph
 ```
 
-The installer will:
-- Ask which agent(s) to configure — auto-detects installed ones from: **Claude Code**, **Cursor**, **Codex CLI**, **opencode**
-- Prompt to install `codegraph` on your PATH (so agents can launch the MCP server)
-- Ask whether configs apply to all your projects or just this one
-- Write each chosen agent's MCP server config + an instructions file (e.g. `CLAUDE.md`, `.cursor/rules/codegraph.mdc`, `~/.codex/AGENTS.md`)
-- Set up auto-allow permissions when Claude Code is one of the targets
-- Initialize your current project (local installs only)
+From source, the compiled binary is `rust/target/release/codegraph-rs`. Put it on your `PATH` as `codegraph`, since generated MCP configs invoke that command.
 
-**Non-interactive (scripting / CI):**
+### 2. Configure Your Agent
 
 ```bash
 codegraph install --yes                              # auto-detect agents, install global
@@ -160,6 +157,8 @@ codegraph install --target=auto --location=local     # detected agents, project-
 codegraph install --print-config codex               # print snippet, no file writes
 ```
 
+The installer supports **Claude Code**, **Cursor**, **Codex CLI**, and **opencode**. It writes each selected agent's MCP config and instruction surface, and can set Claude Code auto-allow permissions.
+
 | Flag | Values | Default |
 |---|---|---|
 | `--target` | `auto`, `all`, `none`, or csv (`claude,cursor,...`) | prompt |
@@ -167,28 +166,50 @@ codegraph install --print-config codex               # print snippet, no file wr
 | `--yes` | (boolean) | prompt every step |
 | `--no-permissions` | (boolean) skip Claude auto-allow list | permissions on |
 | `--print-config <id>` | dump snippet for one agent and exit | — |
+| `--uninstall` | remove generated agent config entries | `false` |
 
-### 2. Restart Your Agent
+### 3. Restart Your Agent
 
 Restart your agent (Claude Code / Cursor / Codex CLI / opencode) for the MCP server to load.
 
-### 3. Initialize Projects
+### 4. Initialize Projects
 
 ```bash
 cd your-project
 codegraph init -i
 ```
 
-Builds the per-project knowledge graph index. Also wires up any project-local agent surfaces (e.g. Cursor's `.cursor/rules/codegraph.mdc`) so a single global `codegraph install` works in every project you open — no need to re-run the installer per project.
+Builds the per-project knowledge graph index under `.codegraph/`. Re-run `codegraph sync` manually after large changes, or let `codegraph serve --mcp` keep the graph current while your agent is connected.
 
 That's it — your agent will use CodeGraph tools automatically when a `.codegraph/` directory exists.
+
+## Rust Implementation
+
+The active Rust implementation lives in [`rust/`](./rust), with detailed migration notes in [`docs/rust-migration.md`](./docs/rust-migration.md). It includes:
+
+- Project lifecycle commands: `init`, `uninit`, `status`, `scan`, `index`, `sync`, `unlock`
+- SQLite graph storage via `rusqlite` with bundled SQLite and FTS-backed symbol search
+- Rust AST extraction via `syn`
+- Tree-sitter-backed extraction for TypeScript, TSX, JavaScript, JSX, Python, Go, Java, C, C++, C#, Ruby, PHP, Swift, Lua/Luau, Dart, and Scala
+- Svelte and Vue component extraction with script-block symbol extraction
+- Import resolution, tsconfig path aliases, cross-file call resolution, and framework route extraction
+- Graph queries for search, callers, callees, impact, file lists, affected tests, and node context
+- A stdio MCP server exposing the existing `codegraph_*` tool names, including `codegraph_explore`
+- Workspace discovery through `rootUri`, `workspaceFolders`, and MCP `roots/list`
+- Polling watcher auto-sync while the MCP server runs
+- Installer and uninstall flows for Claude Code, Cursor, Codex CLI, and opencode
+- An experimental `codegraph-ui` Iced workspace member for graph visualization
+
+Remaining TypeScript-only pieces are Liquid and Delphi DFM extractors, Kotlin grammar extraction, tsconfig `extends` chain following, deeper type-analysis edges (`type_of`, `returns`, `instantiates`), and the old TypeScript library API.
 
 <details>
 <summary><strong>Manual Setup (Alternative)</strong></summary>
 
 **Install globally:**
 ```bash
-npm install -g @colbymchenry/codegraph
+cargo build --release --manifest-path rust/Cargo.toml
+mkdir -p ~/.local/bin
+cp rust/target/release/codegraph-rs ~/.local/bin/codegraph
 ```
 
 **Add to `~/.claude.json`:**
@@ -301,31 +322,32 @@ At the start of a session, ask the user if they'd like to initialize CodeGraph:
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Extraction** — [tree-sitter](https://tree-sitter.github.io/) parses source code into ASTs. Language-specific queries extract nodes (functions, classes, methods) and edges (calls, imports, extends, implements).
+1. **Extraction** — Rust files are parsed with `syn`; most supported languages are parsed with [tree-sitter](https://tree-sitter.github.io/). Svelte and Vue single-file components emit component nodes and parse script blocks for symbols.
 
 2. **Storage** — Everything goes into a local SQLite database (`.codegraph/codegraph.db`) with FTS5 full-text search.
 
-3. **Resolution** — After extraction, references are resolved: function calls → definitions, imports → source files, class inheritance, and framework-specific patterns.
+3. **Resolution** — After extraction, CodeGraph resolves imports, tsconfig path aliases, cross-file calls, dependency relationships, and framework-specific route handlers.
 
-4. **Auto-Sync** — The MCP server watches your project using native OS file events. Changes are debounced (2-second quiet window), filtered to source files only, and incrementally synced. The graph stays fresh as you code — no configuration needed.
+4. **Auto-Sync** — The Rust MCP server can run a polling watcher. Changes are debounced, filtered through the project config, and refreshed into the graph while the server is running.
 
 ---
 
 ## CLI Reference
 
 ```bash
-codegraph                         # Run interactive installer
-codegraph install                 # Run installer (explicit)
-codegraph init [path]             # Initialize in a project (--index to also index)
+codegraph install                 # Run installer
+codegraph init [path]             # Initialize a project (-i/--index to also index)
 codegraph uninit [path]           # Remove CodeGraph from a project (--force to skip prompt)
-codegraph index [path]            # Full index (--force to re-index, --quiet for less output)
-codegraph sync [path]             # Incremental update
-codegraph status [path]           # Show statistics
-codegraph query <search>          # Search symbols (--kind, --limit, --json)
-codegraph files [path]            # Show file structure (--format, --filter, --max-depth, --json)
-codegraph context <task>          # Build context for AI (--format, --max-nodes)
+codegraph status [path]           # Show statistics (--json)
+codegraph scan [path]             # Scan included files without indexing (--json)
+codegraph index [path]            # Full refresh index (--json)
+codegraph sync [path]             # Refresh the graph from current files
+codegraph query <search>          # Search symbols (--kind, --language, --limit)
+codegraph files [path]            # List indexed files (--filter, --json)
+codegraph context <node-id>       # Show graph context around one node (--json)
 codegraph affected [files...]     # Find test files affected by changes (see below)
-codegraph serve --mcp             # Start MCP server
+codegraph unlock [path]           # Remove stale CodeGraph lock files
+codegraph serve --mcp             # Start MCP server (--no-watch to disable watcher)
 ```
 
 ### `codegraph affected`
@@ -334,8 +356,8 @@ Traces import dependencies transitively to find which test files are affected by
 
 ```bash
 codegraph affected src/utils.ts src/api.ts         # Pass files as arguments
-git diff --name-only | codegraph affected --stdin   # Pipe from git diff
-codegraph affected src/auth.ts --filter "e2e/*"     # Custom test file pattern
+git diff --name-only | codegraph affected --stdin  # Pipe from git diff
+codegraph affected src/auth.ts --filter "e2e/*"    # Custom test file pattern
 ```
 
 | Option | Description | Default |
@@ -369,32 +391,48 @@ When running as an MCP server, CodeGraph exposes these tools to Claude Code:
 | `codegraph_callers` | Find what calls a function |
 | `codegraph_callees` | Find what a function calls |
 | `codegraph_impact` | Analyze what code is affected by changing a symbol |
+| `codegraph_explore` | Return source code for related symbols grouped by file, with relationship maps and adaptive budgets |
 | `codegraph_node` | Get details about a specific symbol (optionally with source code) |
 | `codegraph_files` | Get indexed file structure (faster than filesystem scanning) |
 | `codegraph_status` | Check index health and statistics |
 
 ---
 
-## Library Usage
+## Rust Crate Usage
 
-```typescript
-import CodeGraph from '@colbymchenry/codegraph';
+The Rust workspace exposes `codegraph_rs` for local tools that want to query an initialized `.codegraph` database directly.
 
-const cg = await CodeGraph.init('/path/to/project');
-// Or: const cg = await CodeGraph.open('/path/to/project');
+```rust
+use std::path::Path;
 
-await cg.indexAll({
-  onProgress: (p) => console.log(`${p.phase}: ${p.current}/${p.total}`)
-});
+use codegraph_rs::{
+    config, db, directory, extraction,
+    graph::GraphService,
+    query::QueryService,
+};
 
-const results = cg.searchNodes('UserService');
-const callers = cg.getCallers(results[0].node.id);
-const context = await cg.buildContext('fix login bug', { maxNodes: 20, includeCode: true, format: 'markdown' });
-const impact = cg.getImpactRadius(results[0].node.id, 2);
+fn main() -> anyhow::Result<()> {
+    let root = Path::new("/path/to/project");
 
-cg.watch();   // auto-sync on file changes
-cg.unwatch(); // stop watching
-cg.close();
+    if !directory::is_initialized(root) {
+        directory::create_directory(root)?;
+        let cfg = config::create_default_config(root);
+        config::save_config(root, &cfg)?;
+        db::initialize_database(root)?;
+        extraction::index_project(root, &cfg)?;
+    }
+
+    let queries = QueryService::open(root)?;
+    let graph = GraphService::new(&queries);
+    let results = queries.search_nodes("UserService", None, None, 20)?;
+
+    if let Some(node) = results.first() {
+        let callers = graph.get_callers(&node.id, 2)?;
+        println!("{} callers", callers.len());
+    }
+
+    Ok(())
+}
 ```
 
 ---
@@ -406,83 +444,65 @@ The `.codegraph/config.json` file controls indexing:
 ```json
 {
   "version": 1,
-  "languages": ["typescript", "javascript"],
-  "exclude": ["node_modules/**", "dist/**", "build/**", "*.min.js"],
+  "include": ["**/*.ts", "**/*.tsx", "**/*.rs", "**/*.py", "**/*.go"],
+  "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/target/**"],
+  "languages": [],
   "frameworks": [],
   "maxFileSize": 1048576,
   "extractDocstrings": true,
-  "trackCallSites": true
+  "trackCallSites": true,
+  "customPatterns": null
 }
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
+| `include` | Glob patterns to index | common source extensions |
+| `exclude` | Glob patterns to ignore | generated/dependency/build dirs |
 | `languages` | Languages to index (auto-detected if empty) | `[]` |
-| `exclude` | Glob patterns to ignore | `["node_modules/**", ...]` |
 | `frameworks` | Framework hints for better resolution | `[]` |
 | `maxFileSize` | Skip files larger than this (bytes) | `1048576` (1MB) |
 | `extractDocstrings` | Extract docstrings from code | `true` |
 | `trackCallSites` | Track call site locations | `true` |
+| `customPatterns` | Optional user-defined symbol patterns | `null` |
 
 ## Supported Languages
 
 | Language | Extension | Status |
 |----------|-----------|--------|
-| TypeScript | `.ts`, `.tsx` | Full support |
-| JavaScript | `.js`, `.jsx`, `.mjs` | Full support |
-| Python | `.py` | Full support |
-| Go | `.go` | Full support |
-| Rust | `.rs` | Full support |
-| Java | `.java` | Full support |
-| C# | `.cs` | Full support |
-| PHP | `.php` | Full support |
-| Ruby | `.rb` | Full support |
-| C | `.c`, `.h` | Full support |
-| C++ | `.cpp`, `.hpp`, `.cc` | Full support |
-| Swift | `.swift` | Full support |
-| Kotlin | `.kt`, `.kts` | Full support |
-| Scala | `.scala`, `.sc` | Full support (classes, traits, methods, type aliases, Scala 3 enums) |
-| Dart | `.dart` | Full support |
-| Svelte | `.svelte` | Full support (script extraction, Svelte 5 runes, SvelteKit routes) |
-| Vue | `.vue` | Full support (script + script-setup extraction, Nuxt page/API/middleware routes) |
-| Liquid | `.liquid` | Full support |
-| Pascal / Delphi | `.pas`, `.dpr`, `.dpk`, `.lpr` | Full support (classes, records, interfaces, enums, DFM/FMX form files) |
-| Lua | `.lua` | Full support (functions, methods with receivers, local variables, `require` imports, call edges) |
-| Luau | `.luau` | Full support (everything in Lua, plus `type`/`export type` aliases, typed signatures, and Roblox instance-path `require`) |
+| TypeScript | `.ts`, `.tsx` | Tree-sitter symbol extraction, imports, calls |
+| JavaScript | `.js`, `.jsx`, `.mjs` | Tree-sitter symbol extraction, imports, calls |
+| Python | `.py` | Tree-sitter symbol extraction, imports, calls |
+| Go | `.go` | Tree-sitter symbol extraction, imports, calls |
+| Rust | `.rs` | `syn` AST symbol extraction and local calls |
+| Java | `.java` | Tree-sitter symbol extraction, imports, calls |
+| C# | `.cs` | Tree-sitter symbol extraction, imports, calls |
+| PHP | `.php` | Tree-sitter symbol extraction, imports, calls |
+| Ruby | `.rb` | Tree-sitter symbol extraction, imports, calls |
+| C | `.c`, `.h` | Tree-sitter symbol extraction, imports, calls |
+| C++ | `.cpp`, `.hpp`, `.cc`, `.cxx` | Tree-sitter symbol extraction, imports, calls |
+| Swift | `.swift` | Tree-sitter symbol extraction, imports, calls |
+| Scala | `.scala`, `.sc` | Tree-sitter symbol extraction, imports, calls |
+| Dart | `.dart` | Tree-sitter symbol extraction, imports, calls |
+| Svelte | `.svelte` | Component node plus script-block extraction |
+| Vue | `.vue` | Component node plus script-block extraction |
+| Lua | `.lua` | Tree-sitter symbol extraction, imports, calls |
+| Luau | `.luau` | Detected and parsed with the Lua extractor |
+| Kotlin | `.kt`, `.kts` | File discovery only in Rust; grammar extraction is pending |
+| Liquid | `.liquid` | File discovery only in Rust; TypeScript extractor remains the reference |
+| Pascal / Delphi | `.pas`, `.dpr`, `.dpk`, `.lpr`, `.dfm`, `.fmx` | File discovery only in Rust; TypeScript extractor remains the reference |
 
 ## Troubleshooting
 
-**"CodeGraph not initialized"** — Run `codegraph init` in your project directory first.
+**"CodeGraph not initialized"** — Run `codegraph init -i` in your project directory first.
 
-**Indexing is slow** — Check that `node_modules` and other large directories are excluded. Use `--quiet` to reduce output overhead.
+**Indexing is slow** — Check that generated, dependency, and build directories are excluded in `.codegraph/config.json`. The default config excludes common directories such as `node_modules`, `target`, `dist`, `build`, `.next`, `.venv`, and `.gradle`.
 
-**Indexing is slow / MCP `database is locked` / WASM fallback active** — `codegraph` ships with a WASM SQLite fallback for environments where `better-sqlite3` (a native module, declared as `optionalDependencies`) can't install. The fallback is 5-10x slower than the native backend and uses a journal mode that lets writers block readers, so MCP queries can also hit `database is locked` while indexing runs. Run `codegraph status` and look at the `Backend:` line:
+**MCP server not connecting** — Ensure the project is initialized/indexed, verify the binary path in your MCP config, and check that `codegraph serve --mcp` starts from the command line.
 
-- `Backend: native` — you're on the fast path, nothing to do.
-- `Backend: wasm` — you're on the slow fallback. Common causes: missing C build tools, prebuilt binary unavailable for your Node version, or your Node version changed after install. Fix:
+**Stale lock file** — Run `codegraph unlock` from the project root.
 
-  ```bash
-  # macOS
-  xcode-select --install                                  # installs the C compiler
-
-  # Linux (Debian / Ubuntu)
-  sudo apt install build-essential python3 make
-
-  # Linux (RHEL / Fedora)
-  sudo yum groupinstall "Development Tools"
-
-  # Then rebuild on any platform:
-  npm rebuild better-sqlite3
-
-  # Or force-include as a hard dep:
-  npm install better-sqlite3 --save
-  ```
-
-  After the fix, `codegraph status` should show `Backend: native`.
-
-**MCP server not connecting** — Ensure the project is initialized/indexed, verify the path in your MCP config, and check that `codegraph serve --mcp` works from the command line.
-
-**Missing symbols** — The MCP server auto-syncs on save (wait a couple seconds). Run `codegraph sync` manually if needed. Check that the file's language is supported and isn't excluded by config patterns.
+**Missing symbols** — The MCP server auto-syncs while it is running (wait a couple seconds). Run `codegraph sync` manually if needed. Check that the file's language is symbol-extractable in the Rust table above and is not excluded by config patterns.
 
 ## Star History
 
